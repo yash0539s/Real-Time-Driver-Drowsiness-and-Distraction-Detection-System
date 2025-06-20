@@ -1,6 +1,26 @@
-# Ignore the virtual environment
-venv/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
+# Virtual environment
+venv/
+.env/
+.venv/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# VS Code settings
+.vscode/
+
+# Logs and debug
+*.log
+
+# Model weights/checkpoints
+*.pth
+*.tar
+*.ckpt
 # Ignore all model files except a specific one
 models/epoch_24_ckpt.pth.tar
 # But keep this one specific checkpoint
