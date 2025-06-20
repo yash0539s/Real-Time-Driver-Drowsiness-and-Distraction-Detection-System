@@ -1,0 +1,7 @@
+# Ignore the virtual environment
+venv/
+
+# Ignore all model files except a specific one
+models/epoch_24_ckpt.pth.tar
+# But keep this one specific checkpoint
+data/

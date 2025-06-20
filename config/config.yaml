@@ -1,0 +1,13 @@
+camera:
+  id: 0
+  width: 640
+  height: 480
+  fps: 30
+detection:
+  ear_threshold: 0.21
+  consecutive_frames_threshold: 15
+alert:
+  sound_file: alert.wav
+  buzzer_enabled: true
+face_id:
+  enable: true

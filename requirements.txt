@@ -1,0 +1,10 @@
+torch
+torchvision
+opencv-python
+mediapipe
+face-recognition
+PyYAML
+numpy
+pygame
+Flask
+face_recognition
