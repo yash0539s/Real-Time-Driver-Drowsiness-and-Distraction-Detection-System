@@ -6,7 +6,7 @@ from src.face_landmark import init_face_mesh, extract_landmarks
 from src.drowsiness_detector import DrowsinessDetector
 from src.head_pose_estimator import estimate_head_pose
 from src.distraction_detector import DistractionDetector
-from src.face_id_verification import load_known_faces, recognize
+from src.face_id_verification import load_known_faces, recognize_faces
 from src.alert_system import AlertSystem
 
 def main():
@@ -14,9 +14,16 @@ def main():
     log = init_logger()
     log.info("Driver Monitoring Starting...")
 
-    model = DriverMonitorModel()
+    model = DriverMonitorModel(num_classes=3)
     ckpt = torch.load('models/epoch_24_ckpt.pth.tar', map_location='cpu')
-    model.load_state_dict(ckpt['state_dict']); model.eval()
+
+    fixed_state_dict = {
+        k.replace("gaze_network.", "backbone."): v
+        for k, v in ckpt["model_state"].items()
+    }
+
+    model.load_state_dict(fixed_state_dict, strict=False)
+    model.eval()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
@@ -65,7 +72,7 @@ def main():
                 status = "Alert"
 
             if names:
-                pid = recognize(frame, known_encs, names)
+                pid = recognize_faces(frame, known_encs, names)
                 status = f"{pid}: {status}"
 
         cv2.putText(frame, status, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
