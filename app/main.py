@@ -1,4 +1,6 @@
 import cv2, torch, numpy as np
+import mediapipe as mp
+
 from utils.logger import init_logger
 from utils.helpers import load_config, preprocess_image
 from models.driver_model import DriverMonitorModel
@@ -14,24 +16,31 @@ def main():
     log = init_logger()
     log.info("Driver Monitoring Starting...")
 
+    # Load gaze/drowsiness/distraction model
     model = DriverMonitorModel(num_classes=3)
-    ckpt = torch.load('models/epoch_24_ckpt.pth.tar', map_location='cpu')
-
+    ckpt = torch.load("models/epoch_24_ckpt.pth.tar", map_location="cpu")
     fixed_state_dict = {
         k.replace("gaze_network.", "backbone."): v
         for k, v in ckpt["model_state"].items()
     }
-
+    fixed_state_dict = {
+        k: v for k, v in fixed_state_dict.items()
+        if not (k.endswith("fc.weight") or k.endswith("fc.bias"))
+    }
     model.load_state_dict(fixed_state_dict, strict=False)
     model.eval()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
+    # Init detectors and utilities
     fm = init_face_mesh()
     dod = DrowsinessDetector(cfg['detection']['ear_threshold'], cfg['detection']['consecutive_frames_threshold'])
     dd = DistractionDetector()
     al = AlertSystem(cfg['alert']['sound_file'], cfg['alert']['buzzer_enabled'])
+
+    mp_hands = mp.solutions.hands
+    hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.5)
 
     if cfg['face_id']['enable']:
         known_encs, names = load_known_faces()
@@ -51,36 +60,50 @@ def main():
         ret, frame = cap.read()
         if not ret: break
 
-        lm = extract_landmarks(frame, fm)
         status = "No Face"
+        lm = extract_landmarks(frame, fm)
+
+        # Extract hand landmarks using MediaPipe Hands
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        hand_results = hands.process(rgb)
+        hand_landmarks = None
+        if hand_results.multi_hand_landmarks:
+            hand_landmarks = hand_results.multi_hand_landmarks[0].landmark
+
         if lm:
             drowsy = dod.update(lm)
             rmat, _ = estimate_head_pose(lm, frame.shape)
-            distracted = dd.is_looking_away(rmat)
+            distracted = dd.is_distracted(rmat, lm, hand_landmarks)
 
+            # Predict using CNN model
             inp = preprocess_image(frame)
             pred = torch.argmax(model(inp.to(device)), dim=1).item()
-            cls = ["Alert","Drowsy","Distracted"][pred]
+            cls = ["Alert", "Drowsy", "Distracted"][pred]
 
-            if drowsy or cls=="Drowsy":
+            if drowsy or cls == "Drowsy":
                 status = "Drowsy"
                 al.trigger()
-            elif distracted or cls=="Distracted":
+            elif distracted or cls == "Distracted":
                 status = "Distracted"
                 al.trigger()
             else:
                 status = "Alert"
 
+            # Face ID Recognition
             if names:
                 pid = recognize_faces(frame, known_encs, names)
                 status = f"{pid}: {status}"
 
+        # Display status
         cv2.putText(frame, status, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         cv2.imshow("DriverMonitor", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'): break
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
-    cap.release(); cv2.destroyAllWindows()
+    cap.release()
+    cv2.destroyAllWindows()
     fm.close()
+    hands.close()
 
 if __name__ == '__main__':
     main()

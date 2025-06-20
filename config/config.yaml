@@ -7,7 +7,7 @@ detection:
   ear_threshold: 0.21
   consecutive_frames_threshold: 15
 alert:
-  sound_file: alert.wav
+  sound_file: "D:\\siren-alert-96052.mp3"
   buzzer_enabled: true
 face_id:
   enable: true
