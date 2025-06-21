@@ -18,7 +18,7 @@ def main():
     log = init_logger()
     log.info("🚀 Driver Monitoring Starting...")
 
-    # Load CNN model
+    # Load CNN Model
     model = DriverMonitorModel(num_classes=3)
     ckpt = torch.load("models/epoch_24_ckpt.pth.tar", map_location="cpu")
     fixed_state_dict = {
@@ -31,7 +31,7 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
-    # Init components
+    # Init Components
     fm = init_face_mesh()
     dod = AdvancedDrowsinessDetector(
         ear_thresh=cfg['detection']['ear_threshold'],
@@ -56,7 +56,7 @@ def main():
         log.error("❌ Camera can't be opened")
         return
 
-    frame_count = 0  # For flashing animation
+    frame_count = 0
 
     while True:
         ret, frame = cap.read()
@@ -71,33 +71,24 @@ def main():
         hand_landmarks = hand_results.multi_hand_landmarks[0].landmark if hand_results.multi_hand_landmarks else None
 
         if lm:
-            # Drowsiness detection
-            drowsy = dod.update(lm)
-
-            # Head pose + distraction detection
+            drowsy = dod.update(lm, debug=True)
             rmat, _ = estimate_head_pose(lm, frame.shape)
             distracted = dd.is_distracted(rmat, lm, hand_landmarks, image_shape=frame.shape[:2], debug=True)
 
-            # CNN classification
             inp = preprocess_image(frame)
             pred = torch.argmax(model(inp.to(device)), dim=1).item()
             cls = ["Alert", "Drowsy", "Distracted"][pred]
 
-            # Prioritized Status Logic
             phone_frames = sum(dd.phone_detect_buffer)
-            is_using_phone = phone_frames > 5  # You can adjust the threshold
+            is_using_phone = phone_frames > 5
 
             if is_using_phone:
                 status = "🚨 Using Phone"
-
-                # Flashing animation every 10 frames
                 if (frame_count // 10) % 2 == 0:
                     overlay = frame.copy()
                     cv2.rectangle(overlay, (10, 60), (330, 120), (0, 0, 255), -1)
                     frame = cv2.addWeighted(overlay, 0.5, frame, 0.5, 0)
-
-                cv2.putText(frame, "🚨 Using Phone", (20, 105), cv2.FONT_HERSHEY_SIMPLEX,
-                            1.2, (255, 255, 255), 3)
+                cv2.putText(frame, "🚨 Using Phone", (20, 105), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
                 al.trigger()
 
             elif drowsy or cls == "Drowsy":
@@ -118,21 +109,13 @@ def main():
                     name = res['name']
                     top, right, bottom, left = res['box']
                     cv2.rectangle(frame, (left, top), (right, bottom), (255, 0, 0), 2)
-                    cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX,
-                                0.8, (255, 255, 255), 2)
+                    cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
                     status = f"{name}: {status}"
 
-        # Overlay UI
-        cv2.putText(frame, status, (20, 40), cv2.FONT_HERSHEY_SIMPLEX,
-                    1, (0, 0, 255) if "🚨" in status else (0, 255, 0), 2)
-
-        # Debug: phone buffer count
-        cv2.putText(frame, f"PhoneFrames: {sum(dd.phone_detect_buffer)}", (400, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-
-        # Enroll driver hint
-        cv2.putText(frame, "Press 'n' to enroll new driver", (10, frame.shape[0] - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 0), 1)
+        # UI Overlay
+        cv2.putText(frame, status, (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255) if "🚨" in status else (0, 255, 0), 2)
+        cv2.putText(frame, f"PhoneFrames: {sum(dd.phone_detect_buffer)}", (400, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+        cv2.putText(frame, "Press 'n' to enroll new driver", (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 0), 1)
 
         cv2.imshow("DriverMonitor", frame)
 
