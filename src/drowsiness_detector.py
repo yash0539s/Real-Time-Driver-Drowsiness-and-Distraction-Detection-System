@@ -23,10 +23,10 @@ class AdvancedDrowsinessDetector:
         D = dist.euclidean(mouth[12], mouth[16])
         return (A + B + C) / (3.0 * D)
 
-    def update(self, landmarks):
+    def update(self, landmarks, debug=False):
         left_eye = [landmarks[i] for i in [33, 160, 158, 133, 153, 144]]
         right_eye = [landmarks[i] for i in [362, 385, 387, 263, 373, 380]]
-        mouth = [landmarks[i] for i in range(48, 68)]  # Using 68-point model
+        mouth = [landmarks[i] for i in range(48, 68)]  # Change if not using 68-point model
 
         ear = (self.eye_aspect_ratio(left_eye) + self.eye_aspect_ratio(right_eye)) / 2.0
         mar = self.mouth_aspect_ratio(mouth)
@@ -45,5 +45,8 @@ class AdvancedDrowsinessDetector:
 
         if self.blink_counter >= self.blink_consec_frames or self.yawn_counter >= self.yawn_consec_frames:
             drowsy = True
+
+        if debug:
+            print(f"[DEBUG] EAR: {ear:.2f}, MAR: {mar:.2f}, BlinkCount: {self.blink_counter}, YawnCount: {self.yawn_counter}")
 
         return drowsy

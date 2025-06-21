@@ -3,11 +3,16 @@ camera:
   width: 640
   height: 480
   fps: 30
+
 detection:
   ear_threshold: 0.21
+  mar_threshold: 0.7               # ✅ Already added
   consecutive_frames_threshold: 15
+  yawn_frames_threshold: 15       # ✅ NEW: Add this line
+
 alert:
   sound_file: "D:\\siren-alert-96052.mp3"
   buzzer_enabled: true
+
 face_id:
   enable: true
